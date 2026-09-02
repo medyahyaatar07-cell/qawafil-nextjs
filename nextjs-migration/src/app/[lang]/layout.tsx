@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo, Inter } from "next/font/google";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import Header from "@/components/Header";
@@ -59,7 +60,7 @@ export async function generateMetadata({
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
   params,
 }: {
@@ -70,6 +71,19 @@ export default function RootLayout({
   const lang = params.lang;
   const dir = dirFor(lang);
   const T = getContent(lang);
+
+  // Reading the per-request nonce here is what makes middleware.ts's CSP
+  // nonce actually apply to Next.js's own hydration/RSC-payload inline
+  // scripts — see https://nextjs.org/docs/app/guides/content-security-policy.
+  // Without this read, the browser blocks those inline scripts (they carry
+  // no nonce attribute) and the page renders but never becomes interactive:
+  // every client component (LogoIntro's skip button, the language switcher,
+  // scroll-reveal, the page-transition veil) looks present but does nothing.
+  // The trade-off: this opts the [lang] route out of full static generation
+  // (generateStaticParams still lists the known params, but pages now render
+  // per request instead of being pre-built) — required for a per-request
+  // nonce to be correct at all; Vercel serves this just as well either way.
+  await headers();
 
   const jsonLd = {
     "@context": "https://schema.org",
